@@ -11,7 +11,11 @@
 class JediComp{
 public:
     bool operator ()(const Deployment i, const Deployment j){
-        return i.FS > j.FS;
+        if(i.FS == j.FS){
+            if(i.timestamp != j.timestamp) return i.timestamp > j.timestamp;
+            else return i.ID > j.ID;
+        }
+        else return i.FS > j.FS;
     }
 };
 

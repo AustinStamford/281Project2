@@ -36,5 +36,8 @@ public:
     int ID;
     priority_queue<Deployment, vector<Deployment>, JediComp> jedi_depls;
     priority_queue<Deployment, vector<Deployment>, SithComp> sith_depls;
+    //time count FS
+    vector<Deployment> jedi_m;
+    vector<Deployment> sith_m;
 };
 #endif /* Planet_h */

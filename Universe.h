@@ -19,11 +19,14 @@ public:
     Universe(){
         num_generals = 0;
         num_planets = 0;
+        num_battles = 0;
     }
     
     Universe(unsigned int ng, unsigned int np){
         num_generals = ng;
         num_planets = np;
+        num_battles = 0;
+        trooplosses.resize((int)np);
     }
     
     void add_planet(int planet){
@@ -40,7 +43,12 @@ public:
     
     unsigned int num_generals;
     unsigned int num_planets;
+    unsigned int num_battles;
     vector<Planet> planets;
+    vector<vector<int> > trooplosses;
+    //index general
+    //[0] jedi [1] sith [2] lost
+    vector<vector<int> > generalstats;
 };
 
 

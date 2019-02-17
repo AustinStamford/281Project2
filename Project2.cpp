@@ -8,9 +8,12 @@
 
 #include <iostream>
 #include <getopt.h>
+#include <math.h>
 #include "xcode_redirect.hpp"
 #include "P2random.h"
 #include "Universe.h"
+#include "BattleComp.h"
+#include "MovieComp.h"
 
 using namespace std;
 
@@ -18,19 +21,39 @@ void get_options(int argc, char** argv);
 void get_input(Universe &universe);
 void DL(Universe &universe);
 void PR(Universe &universe);
-void match(Planet &p);
+void match(Planet &p, Universe &u);
+void verbose_out(int sithgen, int jedigen, int troops, int pl);
+void EOD_output(Universe &universe);
+void median_pq(vector<int> &v, unsigned int p);
+void median_output(Universe &u);
+void general_eval_output(Universe &u);
+void movie_watcher_output(Universe &u);
+void ambush(Planet &p, unsigned int i);
+void attack(Planet &p, unsigned int i);
+
+void print(Planet &p);
 
 char INPUT_MODE;
 unsigned int CURRENT_TIMESTAMP;
+
+bool VERBOSE = false;
+bool MEDIAN = false;
+bool GENEVAL = false;
+bool MOVIE = false;
 
 int main(int argc, char** argv) {
     /******DONT*TOUCH*********/
     xcode_redirect(argc, argv);
     get_options(argc, argv);
+    cout << "Deploying troops...\n";
     /*************************/
     Universe universe;
     //get input
     get_input(universe);
+    
+    if(GENEVAL) general_eval_output(universe);
+    EOD_output(universe);
+    if(MOVIE) movie_watcher_output(universe);
     
     return 0;
 }
@@ -54,19 +77,23 @@ void get_options(int argc, char** argv) {
     while ((option = getopt_long(argc, argv, "vmgw", longOpts, &option_index)) != -1) {
         switch (option) {
             case 'v':
-                //output = 'v';
+                //verbose
+                VERBOSE = true;
                 break;
                 
             case 'm':
-                //output = 'm';
+                //median
+                MEDIAN = true;
                 break;
                 
             case 'g':
-                // output = 'g';
+                //gen-eval
+                GENEVAL = true;
                 break;
                 
             case 'w':
-                // output = 'w';
+                //movie-watcher
+                MOVIE = true;
                 break;
                 
             default:
@@ -101,6 +128,7 @@ void get_input(Universe &universe){
         cin >> c;
     }
     universe.num_generals = stoi(newline);
+    universe.generalstats.resize(universe.num_generals);
     
     getline(cin, newline);
     str = "";
@@ -109,6 +137,7 @@ void get_input(Universe &universe){
         if(i >= '0' && i <= '9') str += i;
     }
     universe.num_planets = stoi(str);
+    universe.trooplosses.resize(universe.num_planets);
     
     //now deal with actual input - let's implement DL first
     if(INPUT_MODE == 'D'){
@@ -119,7 +148,7 @@ void get_input(Universe &universe){
 
 void DL(Universe &universe){
     int i = 0;
-    int count = 0;
+    unsigned int count = 0;
     string newline;
     string temp = "";
     unsigned int time, gen, planet, FS, quantity;
@@ -128,14 +157,19 @@ void DL(Universe &universe){
     while(getline(cin, newline)){
         //read in timestamp
         count++;
-        cout << "LOOP : " << count << endl;
+        //cout << "LOOP : " << count << endl;
         while(newline[i] != ' '){
             temp += newline[i];
             i++;
         }
         //MEDIAN HERE
         time = stoi(temp);
-        if(time != CURRENT_TIMESTAMP) CURRENT_TIMESTAMP = time;
+        
+        if(time != CURRENT_TIMESTAMP){
+            if(MEDIAN) median_output(universe);
+            CURRENT_TIMESTAMP = time;
+        }
+        
         temp = "";
         //read in jedi
         i++;
@@ -186,53 +220,226 @@ void DL(Universe &universe){
         quantity = stoi(temp);
         temp = "";
         
+        if(universe.generalstats[gen].empty()){
+            if(j){
+                universe.generalstats[gen] = {(int)quantity, 0, 0};
+            }
+            else{
+                universe.generalstats[gen] = {0, (int)quantity, 0};
+            }
+        }
+        else{
+            if(j) universe.generalstats[gen][0] += quantity;
+            else universe.generalstats[gen][1] += quantity;
+        }
+        
         //push back deployment
         i = universe.find_planet(planet);
-        universe.planets[i].add_depl(Deployment(time, gen, planet, j, FS, quantity), j);
-        match(universe.planets[i]);
+        universe.planets[i].add_depl(Deployment(time, gen, planet, j, FS, quantity, count), j);
+        match(universe.planets[i], universe);
+        
+        if(j) universe.planets[i].jedi_m.push_back(Deployment(time, gen, planet, j, FS, quantity, count));
+        else universe.planets[i].sith_m.push_back(Deployment(time, gen, planet, j, FS, quantity, count));
+        
         i = 0;
     }
+    if(MEDIAN) median_output(universe);
 }
 
 void PR(Universe &universe){
     //UNDER CONSTRUCTION
 }
 
-void match(Planet &p){
+void match(Planet &p, Universe &u){
     if(p.jedi_depls.empty() || p.sith_depls.empty()) return;
-    SithComp s;
+    BattleComp s;
     Deployment d;
     int diff = 0;
+    int sithgen, jedigen, troopslost;
     //check whether a battle will happen
     while(s(p.jedi_depls.top(), p.sith_depls.top())){
+        
+        /****DEBUG HELP**/
+        //print(p);
+        /****************/
+        //Battle happens, so increment count
+        u.num_battles++;
         //positive denotes JEDI win, neg denotes SITH win
         diff = p.jedi_depls.top().quantity - p.sith_depls.top().quantity;
         
-        cout << "BATTLE! diff : " << diff << endl;
+        sithgen = p.sith_depls.top().gen;
+        jedigen = p.jedi_depls.top().gen;
+        
+        
         
         //JEDI WIN
         if(diff > 0){
+            troopslost = 2 * p.sith_depls.top().quantity;
             p.sith_depls.pop();
             d = p.jedi_depls.top();
             p.jedi_depls.pop();
-            d.quantity -= diff;
+            d.quantity -= (troopslost / 2);
             p.jedi_depls.push(d);
+            if(VERBOSE) verbose_out(sithgen, jedigen, troopslost, p.ID);
         }
         //SITH WIN
         else if(diff < 0){
+            troopslost = 2 * p.jedi_depls.top().quantity;
             p.jedi_depls.pop();
             d = p.sith_depls.top();
             p.sith_depls.pop();
-            d.quantity += diff;
+            d.quantity -= (troopslost / 2);
             p.sith_depls.push(d);
+            //need to find a way to preserve order here
+            if(VERBOSE) verbose_out(sithgen, jedigen, troopslost, p.ID);
         }
         //DRAW
         else{
+            troopslost = 2 * p.jedi_depls.top().quantity;
             p.jedi_depls.pop();
             p.sith_depls.pop();
+            if(VERBOSE) verbose_out(sithgen, jedigen, troopslost, p.ID);
         }
+        
+        u.trooplosses[p.ID].push_back(troopslost);
+        
+        u.generalstats[jedigen][2] += (troopslost / 2);
+        u.generalstats[sithgen][2] += (troopslost / 2);
+        
         if(p.jedi_depls.empty() || p.sith_depls.empty()) return;
     }
-    cout << "No more battles today" << endl;
-    cout << "TIME : " << CURRENT_TIMESTAMP << endl;
+}
+
+void verbose_out(int sithgen, int jedigen, int troops, int pl){
+    cout << "General " << sithgen << "'s battalion attacked General "
+    << jedigen << "'s battalion on planet " << pl << ". " << troops <<
+    " troops were lost.\n";
+}
+
+void EOD_output(Universe &universe){
+    cout << "---End of Day---\n";
+    cout << "Battles: " << universe.num_battles << "\n";
+}
+
+
+void print(Planet &p){
+    priority_queue<Deployment, vector<Deployment>, JediComp> j(p.jedi_depls);
+    priority_queue<Deployment, vector<Deployment>, SithComp> s(p.sith_depls);
+    
+    cout << "\nPLANET " << p.ID;
+    cout << "\n JEDI BATTALIONS\n";
+    
+    while(!j.empty()){
+        cout << "  GENERAL " << j.top().gen << " HAS " << j.top().quantity << " TROOPS AT FORCE SENSITIVITY " <<
+        j.top().FS << "\n";
+        j.pop();
+    }
+    cout << "SITH BATTALIONS\n";
+    while(!s.empty()){
+        cout << "  GENERAL " << s.top().gen << " HAS " << s.top().quantity << " TROOPS AT FORCE SENSITIVITY " <<
+        s.top().FS << "\n";
+        s.pop();
+    }
+}
+
+void median_output(Universe &u){
+    for(unsigned int i = 0; i < u.trooplosses.size(); i++){
+        if(!u.trooplosses[i].empty()) median_pq(u.trooplosses[i], i);
+    }
+}
+
+void median_pq(vector<int> &v, unsigned int p){
+    priority_queue<int> pq(v.begin(), v.end());
+    int temp, median;
+    if(pq.size() % 2 == 0){
+        for(int i = 0; i < pq.size() / 2 - 1; i++) pq.pop();
+        temp = pq.top();
+        pq.pop();
+        median = (temp + pq.top()) / 2;
+    }
+    else{
+         for(int i = 0; i < pq.size() / 2; i++) pq.pop();
+        median = pq.top();
+    }
+    
+    cout << "Median troops lost on planet " << p <<
+    " at time " << CURRENT_TIMESTAMP << " is " << median << ".\n";
+}
+
+void general_eval_output(Universe &u){
+    cout << "---General Evaluation---\n";
+    unsigned int count = 0;
+    for(auto v : u.generalstats){
+        cout << "General " << count << " deployed " << v[0] << " Jedi troops and " <<
+        v[1] << " Sith troops, and " << (v[0] + v[1] - v[2]) <<
+        "/" << (v[0] + v[1]) << " troops survived.\n";
+        count++;
+    }
+}
+
+void movie_watcher_output(Universe &u){
+    cout << "---Movie Watcher---\n";
+    MovieComp m;
+    for(unsigned int i = 0; i < u.planets.size(); i++){
+        sort(u.planets[i].jedi_m.begin(), u.planets[i].jedi_m.end(), m);
+        sort(u.planets[i].sith_m.begin(), u.planets[i].sith_m.end(), m);
+        ambush(u.planets[i], i);
+        attack(u.planets[i], i);
+    }
+}
+
+void ambush(Planet &p, unsigned int i){
+    Deployment jedi;
+    Deployment sith(0,0,0,false,1,0,0);
+    int index = 0;
+    while(!(jedi.ID > sith.ID)){
+        //if the jedi wins
+//        if(fabs(p.jedi_m[p.jedi_m.size() - index - 1].FS -
+//               p.sith_m[index].FS) >
+//           fabs(p.sith_m[p.jedi_m.size() - index - 1].FS -
+//                p.jedi_m[index].FS)){
+//               jedi = p.jedi_m[p.jedi_m.size() - index - 1];
+//               sith = p.sith_m[index];
+//           }
+//        else if(fabs(p.jedi_m[p.jedi_m.size() - index - 1].FS -
+//                     p.sith_m[index].FS) <=
+//                fabs(p.sith_m[p.jedi_m.size() - index - 1].FS -
+//                     p.jedi_m[index].FS)){
+//                jedi = p.jedi_m[index];
+//                sith = p.sith_m[p.jedi_m.size() - index - 1];
+//            }
+        jedi = p.jedi_m[index];
+        sith = p.sith_m[p.sith_m.size() - index - 1];
+        index++;
+    }
+    cout << "A movie watcher would enjoy an ambush on planet " << i << " with Sith at time " <<
+    sith.timestamp << " and Jedi at time " << jedi.timestamp << ".\n";
+}
+
+void attack(Planet &p, unsigned int i){
+    Deployment jedi;
+    Deployment sith(0,0,0,false,1,0,0);
+    int index = 0;
+    while(!(jedi.ID < sith.ID)){
+        //if the jedi wins
+//        if(fabs(p.jedi_m[p.jedi_m.size() - index - 1].FS -
+//                p.sith_m[index].FS) <
+//           fabs(p.sith_m[p.jedi_m.size() - index - 1].FS -
+//                p.jedi_m[index].FS)){
+//               jedi = p.jedi_m[p.jedi_m.size() - index - 1];
+//               sith = p.sith_m[index];
+//           }
+//        else if(fabs(p.jedi_m[p.jedi_m.size() - index - 1].FS -
+//                     p.sith_m[index].FS) >=
+//                fabs(p.sith_m[p.jedi_m.size() - index - 1].FS -
+//                     p.jedi_m[index].FS)){
+//                    jedi = p.jedi_m[index];
+//                    sith = p.sith_m[p.jedi_m.size() - index - 1];
+//                }
+        jedi = p.jedi_m[index];
+        sith = p.sith_m[p.sith_m.size() - index - 1];
+        index++;
+    }
+    cout << "A movie watcher would enjoy an attack on planet " << i << " with Jedi at time " <<
+    jedi.timestamp << " and Sith at time " << sith.timestamp << ".\n";
 }

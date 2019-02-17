@@ -12,13 +12,14 @@
 class Deployment {
     public:
         Deployment(unsigned int t, unsigned int g, unsigned int p,
-                bool j, unsigned int f, unsigned int q){
+                   bool j, unsigned int f, unsigned int q, unsigned int tie_id){
             timestamp = t;
             gen = g;
             planet = p;
             jedi = j;
             FS = f;
             quantity = q;
+            ID = tie_id;
         }
     
         Deployment(){
@@ -28,6 +29,7 @@ class Deployment {
             jedi = true;
             FS = 0;
             quantity = 0;
+            ID = 0;
         }
     
     unsigned int timestamp;
@@ -36,6 +38,7 @@ class Deployment {
     bool jedi;
     unsigned int FS;
     unsigned int quantity;
+    unsigned int ID;
 };
 
 #endif /* Deployment_h */
