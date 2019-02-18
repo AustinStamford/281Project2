@@ -21,7 +21,7 @@
 # TODO (begin) #
 #######################
 # Change EXECUTABLE to match the command name given in the project spec.
-EXECUTABLE  = executable
+EXECUTABLE  = galaxy
 DEBUG       = $(EXECUTABLE)_debug
 
 # If main() is in a file named project*.cpp, use the following line

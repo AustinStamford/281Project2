@@ -35,7 +35,7 @@ public:
     }
     
     int find_planet(int planet){
-        for(int i = 0; i < planets.size(); i++){
+        for(unsigned int i = 0; i < planets.size(); i++){
             if(planets[i].ID == planet) return i;
         }
         return -1;

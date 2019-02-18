@@ -30,6 +30,9 @@ void general_eval_output(Universe &u);
 void movie_watcher_output(Universe &u);
 void ambush(Planet &p, unsigned int i);
 void attack(Planet &p, unsigned int i);
+void ambush_assess(Planet &p, const Deployment &d);
+void attack_assess(Planet &p, const Deployment &d);
+void PR_input(Universe &u, stringstream& ss);
 
 void print(Planet &p);
 
@@ -51,8 +54,8 @@ int main(int argc, char** argv) {
     //get input
     get_input(universe);
     
-    if(GENEVAL) general_eval_output(universe);
     EOD_output(universe);
+    if(GENEVAL) general_eval_output(universe);
     if(MOVIE) movie_watcher_output(universe);
     
     return 0;
@@ -111,7 +114,10 @@ void get_input(Universe &universe){
     char c = 'x';
     //COMMENT: <COMMENT> ignore
     getline(cin, newline);
-     //MODE: <INPUT_MODE> DL or PR
+    //MODE: <INPUT_MODE> DL or PR
+    while(c != ':'){
+        cin >> c;
+    }
     while(c != 'D' && c != 'P'){
         cin >> c;
     }
@@ -238,8 +244,11 @@ void DL(Universe &universe){
         universe.planets[i].add_depl(Deployment(time, gen, planet, j, FS, quantity, count), j);
         match(universe.planets[i], universe);
         
-        if(j) universe.planets[i].jedi_m.push_back(Deployment(time, gen, planet, j, FS, quantity, count));
-        else universe.planets[i].sith_m.push_back(Deployment(time, gen, planet, j, FS, quantity, count));
+        
+        ambush_assess(universe.planets[i], Deployment(time, gen, planet, j, FS, quantity, count));
+        attack_assess(universe.planets[i], Deployment(time, gen, planet, j, FS, quantity, count));
+        //        if(j) universe.planets[i].jedi_m.push_back(Deployment(time, gen, planet, j, FS, quantity, count));
+        //        else universe.planets[i].sith_m.push_back(Deployment(time, gen, planet, j, FS, quantity, count));
         
         i = 0;
     }
@@ -247,7 +256,32 @@ void DL(Universe &universe){
 }
 
 void PR(Universe &universe){
-    //UNDER CONSTRUCTION
+    unsigned int seed, num_depl, rate;
+    string newline, temp;
+    stringstream ss;
+    getline(cin, newline);
+    for(auto i : newline){
+            if(i >= '0' && i <= '9') temp += i;
+    }
+    seed = stoi(temp);
+    temp = "";
+    
+    getline(cin, newline);
+    for(auto i : newline){
+        if(i >= '0' && i <= '9') temp += i;
+    }
+    num_depl = stoi(temp);
+    temp = "";
+    
+    getline(cin, newline);
+    for(auto i : newline){
+        if(i >= '0' && i <= '9') temp += i;
+    }
+    rate = stoi(temp);
+    temp = "";
+    
+    P2random::PR_init(ss, seed, universe.num_generals, universe.num_planets, num_depl, rate);
+    PR_input(universe, ss);
 }
 
 void match(Planet &p, Universe &u){
@@ -352,13 +386,13 @@ void median_pq(vector<int> &v, unsigned int p){
     priority_queue<int> pq(v.begin(), v.end());
     int temp, median;
     if(pq.size() % 2 == 0){
-        for(int i = 0; i < pq.size() / 2 - 1; i++) pq.pop();
+        for(unsigned int i = 0; i < pq.size() / 2 - 1; i++) pq.pop();
         temp = pq.top();
         pq.pop();
         median = (temp + pq.top()) / 2;
     }
     else{
-         for(int i = 0; i < pq.size() / 2; i++) pq.pop();
+        for(unsigned int i = 0; i < pq.size() / 2; i++) pq.pop();
         median = pq.top();
     }
     
@@ -379,67 +413,254 @@ void general_eval_output(Universe &u){
 
 void movie_watcher_output(Universe &u){
     cout << "---Movie Watcher---\n";
-    MovieComp m;
     for(unsigned int i = 0; i < u.planets.size(); i++){
-        sort(u.planets[i].jedi_m.begin(), u.planets[i].jedi_m.end(), m);
-        sort(u.planets[i].sith_m.begin(), u.planets[i].sith_m.end(), m);
         ambush(u.planets[i], i);
         attack(u.planets[i], i);
     }
 }
 
 void ambush(Planet &p, unsigned int i){
-    Deployment jedi;
-    Deployment sith(0,0,0,false,1,0,0);
-    int index = 0;
-    while(!(jedi.ID > sith.ID)){
-        //if the jedi wins
-//        if(fabs(p.jedi_m[p.jedi_m.size() - index - 1].FS -
-//               p.sith_m[index].FS) >
-//           fabs(p.sith_m[p.jedi_m.size() - index - 1].FS -
-//                p.jedi_m[index].FS)){
-//               jedi = p.jedi_m[p.jedi_m.size() - index - 1];
-//               sith = p.sith_m[index];
-//           }
-//        else if(fabs(p.jedi_m[p.jedi_m.size() - index - 1].FS -
-//                     p.sith_m[index].FS) <=
-//                fabs(p.sith_m[p.jedi_m.size() - index - 1].FS -
-//                     p.jedi_m[index].FS)){
-//                jedi = p.jedi_m[index];
-//                sith = p.sith_m[p.jedi_m.size() - index - 1];
-//            }
-        jedi = p.jedi_m[index];
-        sith = p.sith_m[p.sith_m.size() - index - 1];
-        index++;
-    }
-    cout << "A movie watcher would enjoy an ambush on planet " << i << " with Sith at time " <<
-    sith.timestamp << " and Jedi at time " << jedi.timestamp << ".\n";
+    cout << "A movie watcher would enjoy an ambush on planet " << i << " with Sith at time " << p.sith_ambush.time << " and Jedi at time " << p.jedi_ambush.time << ".\n";
 }
 
 void attack(Planet &p, unsigned int i){
-    Deployment jedi;
-    Deployment sith(0,0,0,false,1,0,0);
-    int index = 0;
-    while(!(jedi.ID < sith.ID)){
-        //if the jedi wins
-//        if(fabs(p.jedi_m[p.jedi_m.size() - index - 1].FS -
-//                p.sith_m[index].FS) <
-//           fabs(p.sith_m[p.jedi_m.size() - index - 1].FS -
-//                p.jedi_m[index].FS)){
-//               jedi = p.jedi_m[p.jedi_m.size() - index - 1];
-//               sith = p.sith_m[index];
-//           }
-//        else if(fabs(p.jedi_m[p.jedi_m.size() - index - 1].FS -
-//                     p.sith_m[index].FS) >=
-//                fabs(p.sith_m[p.jedi_m.size() - index - 1].FS -
-//                     p.jedi_m[index].FS)){
-//                    jedi = p.jedi_m[index];
-//                    sith = p.sith_m[p.jedi_m.size() - index - 1];
-//                }
-        jedi = p.jedi_m[index];
-        sith = p.sith_m[p.sith_m.size() - index - 1];
-        index++;
+        cout << "A movie watcher would enjoy an attack on planet " << i << " with Jedi at time " << p.jedi_attack.time << " and Sith at time " << p.sith_attack.time << ".\n";
+    
+}
+
+void ambush_assess(Planet &p, const Deployment &d){
+    if(d.jedi){
+        //if no sith there
+        if(p.sith_ambush == Coord(-1, -1, -1)){
+            return;
+        }
+        //if sith there
+        else{
+            //if no alt exists
+            if(p.sith_ambush_alt == Coord(-1, -1, -1)){
+                //if this is a better matchup than before (or no matchup before)
+                if((int)d.FS < p.jedi_ambush.FS || p.jedi_ambush == Coord(-1, -1, -1)){
+                    p.jedi_ambush = Coord((int) d.ID, (int)d.FS, (int)d.timestamp);
+                }
+                //not a better matchup
+                else return;
+            }
+            else{
+                //if alt exists
+                if(p.sith_ambush.FS - p.jedi_ambush.FS < p.sith_ambush_alt.FS - (int)d.FS){
+                    p.sith_ambush = p.sith_ambush_alt;
+                    p.sith_ambush_alt = Coord(-1,-1,-1);
+                    p.jedi_ambush = Coord((int) d.ID, (int)d.FS, (int)d.timestamp);
+                }
+                else return;
+            }
+        }
     }
-    cout << "A movie watcher would enjoy an attack on planet " << i << " with Jedi at time " <<
-    jedi.timestamp << " and Sith at time " << sith.timestamp << ".\n";
+    //sith deployment
+    else{
+        //no jedi
+        if(p.jedi_ambush == Coord(-1,-1,-1)){
+            //no sith either
+            if(p.sith_ambush == Coord(-1,-1,-1)){
+                p.sith_ambush = Coord((int) d.ID, (int)d.FS, (int)d.timestamp);
+            }
+            //there are sith already there
+            else{
+                //stronger sith
+                if((int)d.FS > p.sith_ambush.FS){
+                    p.sith_ambush = Coord((int) d.ID, (int)d.FS, (int)d.timestamp);
+                }
+                //not stronger
+                else return;
+            }
+        }
+        //there are jedi
+        else{
+            //new sith is stronger than old
+            if((int)d.FS > p.sith_ambush.FS){
+                //new sith is stronger than alt/is no alt
+                if((int)d.FS > p.sith_ambush_alt.FS){
+                    p.sith_ambush_alt = Coord((int) d.ID, (int)d.FS, (int)d.timestamp);
+                }
+                //new sith not stronger than alt
+                else return;
+            }
+            //not stronger than old, return
+            else return;
+        }
+    }
+}
+
+void attack_assess(Planet &p, const Deployment &d){
+    if(d.jedi){
+        //if no sith there
+        if(p.sith_attack == Coord(-1, -1, -1)){
+            //if also no jedi
+            if(p.jedi_attack == Coord(-1, -1, -1)){
+                p.jedi_attack = Coord((int) d.ID, (int)d.FS, (int)d.timestamp);
+            }
+            //else if there are jedi as well
+            else{
+                //if better matchup than current jedi (and still no sith)
+                if((int)d.FS < p.jedi_attack.FS){
+                    p.jedi_attack = Coord((int) d.ID, (int)d.FS, (int)d.timestamp);
+                }
+                //if not better matchup
+                else return;
+            }
+        }
+        //if sith there
+        else{
+            //if better matchup
+            if((int)d.FS < p.jedi_attack.FS){
+                //if no alt
+                if(p.jedi_attack_alt == Coord(-1, -1, -1)){
+                    p.jedi_attack_alt = Coord((int) d.ID, (int)d.FS, (int)d.timestamp);
+                }
+                //if alt exists
+                else{
+                    //if new is a better matchup than alt
+                    if((int)d.FS < p.jedi_attack_alt.FS){
+                        p.jedi_attack_alt = Coord((int) d.ID, (int)d.FS, (int)d.timestamp);
+                    }
+                    //if not better matchup than alt
+                    else return;
+                }
+            }
+            //if not better matchup than current
+            else return;
+        }
+    }
+    //sith deployment
+    else{
+        //no jedi
+        if(p.jedi_attack == Coord(-1,-1,-1)){
+            return;
+        }
+        //there are jedi
+        else{
+            //if alt does not exist
+            if(p.jedi_attack_alt == Coord(-1, -1, -1)){
+                //if stronger matchup than prev sith
+                if((int)d.FS > p.sith_attack.FS){
+                    p.sith_attack = Coord((int) d.ID, (int)d.FS, (int)d.timestamp);
+                }
+                //if not stronger matchup than prev sith
+                else return;
+            }
+            //alt does exist
+            else{
+                //is new-alt a better matchup than old-old? - yes
+                if((int)d.FS - p.jedi_attack_alt.FS > p.sith_attack.FS - p.jedi_attack.FS){
+                    p.jedi_attack = p.jedi_attack_alt;
+                    p.sith_attack = Coord((int) d.ID, (int)d.FS, (int)d.timestamp);
+                    p.jedi_attack_alt = Coord(-1, -1, -1);
+                }
+                //not a better matchup than current
+                else return;
+            }
+        }
+    }
+}
+
+void PR_input(Universe &universe, stringstream &ss){
+    int i = 0;
+    unsigned int count = 0;
+    string newline;
+    string temp = "";
+    unsigned int time, gen, planet, FS, quantity;
+    bool j;
+    //read in all lines
+    while(getline(ss, newline)){
+        //read in timestamp
+        count++;
+        //cout << "LOOP : " << count << endl;
+        while(newline[i] != ' '){
+            temp += newline[i];
+            i++;
+        }
+        //MEDIAN HERE
+        time = stoi(temp);
+        
+        if(time != CURRENT_TIMESTAMP){
+            if(MEDIAN) median_output(universe);
+            CURRENT_TIMESTAMP = time;
+        }
+        
+        temp = "";
+        //read in jedi
+        i++;
+        if(newline[i] == 'S') j = false;
+        else j = true;
+        //advance to next info
+        while(newline[i] != 'G') i++;
+        i++;
+        //General
+        while(newline[i] != ' '){
+            temp += newline[i];
+            i++;
+        }
+        gen = stoi(temp);
+        temp = "";
+        //advance to Planet
+        while(newline[i] != 'P') i++;
+        i++;
+        //Planet
+        while(newline[i] != ' '){
+            temp += newline[i];
+            i++;
+        }
+        planet = stoi(temp);
+        
+        universe.add_planet(planet);
+        
+        temp = "";
+        //advance to FS
+        while(newline[i] != 'F') i++;
+        i++;
+        //Force Senitivity
+        while(newline[i] != ' '){
+            temp += newline[i];
+            i++;
+        }
+        FS = stoi(temp);
+        temp = "";
+        
+        //advance to NUM_TROOPS
+        while(newline[i] != '#') i++;
+        i++;
+        //NUM_TROOPS
+        while(newline[i] != ' '){
+            temp += newline[i];
+            i++;
+        }
+        quantity = stoi(temp);
+        temp = "";
+        
+        if(universe.generalstats[gen].empty()){
+            if(j){
+                universe.generalstats[gen] = {(int)quantity, 0, 0};
+            }
+            else{
+                universe.generalstats[gen] = {0, (int)quantity, 0};
+            }
+        }
+        else{
+            if(j) universe.generalstats[gen][0] += quantity;
+            else universe.generalstats[gen][1] += quantity;
+        }
+        
+        //push back deployment
+        i = universe.find_planet(planet);
+        universe.planets[i].add_depl(Deployment(time, gen, planet, j, FS, quantity, count), j);
+        match(universe.planets[i], universe);
+        
+        
+        ambush_assess(universe.planets[i], Deployment(time, gen, planet, j, FS, quantity, count));
+        //        if(j) universe.planets[i].jedi_m.push_back(Deployment(time, gen, planet, j, FS, quantity, count));
+        //        else universe.planets[i].sith_m.push_back(Deployment(time, gen, planet, j, FS, quantity, count));
+        
+        i = 0;
+    }
+    if(MEDIAN) median_output(universe);
 }

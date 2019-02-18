@@ -9,6 +9,7 @@
 #include "Deployment.h"
 #include "JediComp.h"
 #include "SithComp.h"
+#include "Coord.h"
 
 using namespace std;
 
@@ -36,8 +37,15 @@ public:
     int ID;
     priority_queue<Deployment, vector<Deployment>, JediComp> jedi_depls;
     priority_queue<Deployment, vector<Deployment>, SithComp> sith_depls;
-    //time count FS
-    vector<Deployment> jedi_m;
-    vector<Deployment> sith_m;
+    //ID, FS
+    //init to -1,-1
+    Coord jedi_attack;
+    Coord sith_attack;
+    Coord jedi_attack_alt;
+    
+    Coord jedi_ambush;
+    Coord sith_ambush;
+    Coord sith_ambush_alt;
+    
 };
 #endif /* Planet_h */
